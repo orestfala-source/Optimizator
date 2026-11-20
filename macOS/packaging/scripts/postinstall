@@ -1,0 +1,17 @@
+#!/bin/bash
+# Встановлює root-помічника (вентилятори, пріоритети, Low Power Mode) — без окремого запиту пароля в програмі
+APP="/Applications/Optimizator.app"
+HELPER_SRC="$APP/Contents/Resources/optimizator-smc"
+HELPER_DST="/usr/local/libexec/optimizator-smc"
+
+if [ -f "$HELPER_SRC" ]; then
+    mkdir -p /usr/local/libexec
+    install -o root -g wheel -m 4755 "$HELPER_SRC" "$HELPER_DST"
+fi
+
+# Запустити програму для користувача, який зараз у системі
+CONSOLE_USER=$(stat -f%Su /dev/console)
+if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ]; then
+    launchctl asuser "$(id -u "$CONSOLE_USER")" sudo -u "$CONSOLE_USER" open "$APP" >/dev/null 2>&1 || true
+fi
+exit 0

@@ -1,0 +1,16 @@
+#!/bin/bash
+# Перед оновленням: коректно закрити запущений Optimizator (він поверне вентилятори в авто)
+CONSOLE_USER=$(stat -f%Su /dev/console)
+
+if pgrep -x Optimizator >/dev/null 2>&1; then
+    if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ]; then
+        launchctl asuser "$(id -u "$CONSOLE_USER")" sudo -u "$CONSOLE_USER" \
+            osascript -e 'tell application id "com.optimizator.app" to quit' >/dev/null 2>&1 || true
+    fi
+    for _ in 1 2 3 4 5 6; do
+        pgrep -x Optimizator >/dev/null 2>&1 || break
+        sleep 0.5
+    done
+    pkill -TERM -x Optimizator >/dev/null 2>&1 || true
+fi
+exit 0
