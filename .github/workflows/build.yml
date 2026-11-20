@@ -1,1 +1,71 @@
 
+name: Build installers
+
+# Збирає Optimizator-Setup.exe (Windows) і Optimizator.dmg (macOS) на серверах GitHub.
+# Готові файли: вкладка Actions → потрібний запуск → Artifacts.
+# Якщо запушити тег v1.0.0 — створиться реліз з обома інсталерами.
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Read version
+        shell: pwsh
+        run: echo "VERSION=$((Get-Content VERSION -Raw).Trim())" >> $env:GITHUB_ENV
+
+      - name: Publish app (self-contained)
+        run: dotnet publish Windows/Optimizator.csproj -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -p:Version=${{ env.VERSION }} -o Windows/publish
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Qp "/DAppVersion=${{ env.VERSION }}" Windows\installer\Optimizator.iss'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Optimizator-Windows
+          path: Windows/dist/*.exe
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app, pkg and dmg
+        run: bash macOS/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Optimizator-macOS
+          path: |
+            macOS/dist/*.dmg
+            macOS/dist/*.pkg
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
